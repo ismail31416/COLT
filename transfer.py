@@ -448,8 +448,8 @@ if __name__=="__main__":
     parser.add_argument("--dataset1", default="tinyimagenet", type=str, help="mnist | cifar10 | fashionmnist | cifar100 | imagenet | tinyimagenet | -dataset on which the model is already trained")
     parser.add_argument("--dataset2", default="cifar10", type=str, help="mnist | cifar10 | fashionmnist | cifar100 | imagenet | tinyimagenet | -dataset on which the model will be trained based on weights from dataset1")
     parser.add_argument("--prune_type", default="lth", type=str, help="lth | colt")
-    parser.add_argument("--part1", default="full", type=str, help="A | B -whose weights will be transferred") #part1 should be empty string while transferring COLT weights
-    parser.add_argument("--part2", default="full", type=str, help="A | B | full -which will be trained on transferred weights") #if "full", lth/colt weights will be transferred to entire dataset  
+    parser.add_argument("--part1", default="full", type=str, help="A | B | ''- dataset partition whose weights will be transferred. ''(empty string) for transferring COLT weights as COLT weights are generated leveraging both A and B partitions")
+    parser.add_argument("--part2", default="full", type=str, help="A | B | full - dataset partition that will be trained on transfered weights from part1. 'full' means trained on the entire dataset and not on a partition (A/B)")  
     parser.add_argument("--bias", default=0, type=int, help="prune bias or not")#0
     parser.add_argument("--output_class", default=10, type=int, help="Output classes for the model (based on dataset2)")
     parser.add_argument("--start_iter", default=0, type=int, help="start epoch")#0
