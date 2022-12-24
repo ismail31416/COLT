@@ -34,15 +34,15 @@ https://gist.github.com/evanwill/0207876c3243bbb6863e65ec5dc3f058
 
 
 ## After extraction and processing val images with the code, we will get train and val folder with class names like this:
-
+```
 /directory/to/imagenet/
-                \|----train
-                      \|----n01440764
-                      \|----...
-                \|----val
-                      \|----n01440764
-                      \|----... 
-
+                |----train
+                      |----n01440764
+                      |----...
+                |----val
+                      |----n01440764
+                      |----... 
+```
 If not, make sure the wget command ran properly or rerun the wget command.
 
 
