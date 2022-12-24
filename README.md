@@ -1,7 +1,6 @@
 # COLT: Cyclic Overlapping Lottery Tickets for Faster Pruning of Convolutional Neural Networks in Pytorch 
 [![Made With python 3.7](https://img.shields.io/badge/Made%20with-Python%203.7-brightgreen)]() [![Maintenance](https://img.shields.io/badge/Maintained%3F-no-red.svg)]() [![Open Source Love svg1](https://badges.frapsoft.com/os/v1/open-source.svg?v=103)]() 
 
-# COLT: Cyclic Overlapping Lottery Tickets for Faster Pruning of Convolutional Neural Networks
 
 This repository is for our TAI paper[under-review]:
 > COLT: Cyclic Overlapping Lottery Tickets for Faster Pruning of Convolutional Neural Networks [arXiv](https://arxiv.org/abs/2203.04248) by [Md. Ismail Hossain](), [Mohammed Rakib](), [MM Lutfe Elahi](), [Nabeel Mohammed](), and [Shafin Rahman]()
@@ -11,6 +10,7 @@ COLT aims to generate winning lottery tickets from a set of lottery tickets tha
 also this repo includes
 
 >[The Lottery Ticket Hypothesis: Finding Sparse, Trainable Neural Networks](https://arxiv.org/abs/1803.03635) by [Jonathan Frankle](https://github.com/jfrankle) and [Michael Carbin](https://people.csail.mit.edu/mcarbin/)
+
 >[One ticket to win them all: generalizing lottery ticket initializations across datasets and optimizers](https://arxiv.org/abs/1906.02773) by Ari S. Morcos, Haonan Yu, Michela Paganini, Yuandong Tian
 
 
