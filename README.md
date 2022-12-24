@@ -76,8 +76,8 @@ python3 transfer.py --prune_type=lth --arch_type=resnet18 --dataset=cifar100 --p
 ||`--dataset1`|`tinyimagenet`|mnist \| cifar10 \| fashionmnist \| cifar100 \| imagenet \| tinyimagenet \| -dataset on which the model is already trained|
 ||`--dataset2`|`cifar10`|mnist \| cifar10 \| fashionmnist \| cifar100 \| imagenet \| tinyimagenet \| -dataset on which the model will be trained based on weights from dataset1|
 ||`--prune_type`|`lth`|lth \| colt|
-||`--part1`|``|A \| B - dataset partition whose weights will be transferred|
-||`--part2`|`full`|A \| B \| full - dataset partition that will be trained on transfered weights from part1. 'full' means trained on the entire dataset and not on a partition (A/B)
+||`--part1`|''|A \| B \| ''- dataset partition whose weights will be transferred. '' for transferring COLT weights as COLT weights are generated leveraging both A and B partitions|
+||`--part2`|`full`|A \| B \| full - dataset partition that will be trained on transfered weights from part1. 'full' means trained on the entire dataset and not on a partition (A/B)|
 ||`--bias`|`0`|prune bias or not|
 ||`--output_class`|`10`|Output classes for the model (based on dataset2)|
 ||`--start_iter`|`0`|start epoch|
