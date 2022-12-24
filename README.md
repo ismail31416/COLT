@@ -19,6 +19,12 @@ This repository also includes the implementation for the following papers:
 - python>=3.6
 - Install libraries by `pip install -r requirements.txt`.
 
+## Datasets
+- Put all datasets in the 'data' folder in the root directory. 
+- Cifar-10, Cifar-100 and FashionMNIST downloads automatically using torchvision.datasets
+- For TinyImagenet, download from [Kaggle](https://www.kaggle.com/datasets/akash2sharma/tiny-imagenet) and use [tinyimagenet.py](https://github.com/ismail31416/COLT/blob/main/tinyimagenet.py) to process the dataset 
+- For ImageNet, follow the instructions [here.](https://github.com/ismail31416/COLT/blob/main/ImageNet%20in%20PyTorch.md)
+
 ## How to run the main code ? 
 ### How to run COLT ? 
 ```
