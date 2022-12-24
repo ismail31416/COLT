@@ -86,8 +86,6 @@ python3 transfer.py --prune_type=lth --arch_type=resnet18 --dataset=cifar100 --p
 ||`--lr`|`0.1`|Learning rate|
 ||`--warmup`|`1`|Initial no. of epochs to apply learning rate warmup. 3 means apply warmup for first 3 epochs. 0 means no warmup|
 ||`--patience`|`50`|Patience level of epochs before ending training (based on validation loss)|
-||`--print_freq`|`1`|`None`|
-||`--valid_freq`|`1`|`None`|
 ||`--gpu`|`0`|`None`|
 
 
