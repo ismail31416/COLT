@@ -99,7 +99,7 @@ We would like to thank [rahulvigneswaran](https://github.com/rahulvigneswaran/Lo
 
 ## Reference
 If you have any questions, please reach out to Md. Ismail Hossain (ismail.hossain2018@northsouth.edu)
-
+If our work aids your research, cite this in your article.
 ```
 @misc{https://doi.org/10.48550/arxiv.2212.12770,
   doi = {10.48550/ARXIV.2212.12770},
