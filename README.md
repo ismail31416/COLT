@@ -100,6 +100,25 @@ We would like to thank [rahulvigneswaran](https://github.com/rahulvigneswaran/Lo
 ## Reference
 If you have any questions, please reach out to Md. Ismail Hossain (ismail.hossain2018@northsouth.edu)
 
+```
+@misc{https://doi.org/10.48550/arxiv.2212.12770,
+  doi = {10.48550/ARXIV.2212.12770},
+  
+  url = {https://arxiv.org/abs/2212.12770},
+  
+  author = {Hossain, Md. Ismail and Rakib, Mohammed and Elahi, M. M. Lutfe and Mohammed, Nabeel and Rahman, Shafin},
+  
+  keywords = {Computer Vision and Pattern Recognition (cs.CV), FOS: Computer and information sciences, FOS: Computer and information sciences},
+  
+  title = {COLT: Cyclic Overlapping Lottery Tickets for Faster Pruning of Convolutional Neural Networks},
+  
+  publisher = {arXiv},
+  
+  year = {2022},
+  
+  copyright = {arXiv.org perpetual, non-exclusive license}
+}
+```
 
 
 
