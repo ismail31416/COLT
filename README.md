@@ -98,7 +98,7 @@ python3 transfer.py --prune_type=lth --arch_type=resnet18 --dataset=cifar100 --p
 We would like to thank [rahulvigneswaran](https://github.com/rahulvigneswaran/Lottery-Ticket-Hypothesis-in-Pytorch) for his repo on Lottery Ticket Hypothesis. 
 
 ## Reference
-If you have any questions, please reach out to Md. Ismail Hossain (ismail.hossain2018@northsouth.edu)
+If you have any questions, please reach out to Md. Ismail Hossain (ismailhossain1722018@gmail.com)
 
 If our work aids your research, cite this in your article.
 ```
