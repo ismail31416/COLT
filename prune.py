@@ -150,7 +150,7 @@ def colt2(models, partition):
         _,models[i] = colt(models[i-1],models[i],bias = False)
 
     for i in range(partition-1):
-        models[i] = load_weights(models[i],models[-1])
+        models[i],_ = load_weights(models[i],models[-1])
 
     return models
 
@@ -199,7 +199,7 @@ def colt2(models, partition):
 
 def prune_rate_calculator(model, bias=True):
     nonzero = total = 0.0
-    for module in model.modules():
+    for name, module in model.named_modules():
         if isinstance(module, nn.Linear) or  isinstance(module, nn.Conv2d) or isinstance(module, nn.BatchNorm2d):
             if check_pruned(module, bias=bias):
                 # print(f"YES! {module} pruned!!")
