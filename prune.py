@@ -41,6 +41,53 @@ def check_pruned(module, bias=True):
         return params == expected_params1 or params == expected_params2
 
 
+def load_weights(model1,model2, bias = True):
+
+
+    with torch.no_grad():
+        for (name1, module1), (name2, module2) in zip(model1.named_modules(), model2.named_modules()): 
+            if isinstance(module1, nn.Linear) or  isinstance(module1, nn.Conv2d) or isinstance(module1, nn.BatchNorm2d):
+                device = module1.weight.device
+
+                if check_pruned(module1, bias=bias):
+                    ticket1_weight = module1.weight_mask.detach().cpu().numpy()
+                    ticket2_weight = module2.weight_mask.detach().cpu().numpy()
+
+                    overlap_weight = only_matching_weights(ticket1_weight, ticket2_weight, name1)
+
+                    module1.weight_mask.copy_(torch.from_numpy(overlap_weight).float().to(device))
+                    module2.weight_mask.copy_(torch.from_numpy(overlap_weight).float().to(device))
+
+                    if bias:
+                        ticket1_bias = module1.bias_mask.detach().cpu().numpy()
+                        ticket2_bias = module2.bias_mask.detach().cpu().numpy()
+
+                        overlap_bias = only_matching_weights(ticket1_bias, ticket2_bias, name1)
+
+                        module1.bias_mask.copy_(torch.from_numpy(overlap_bias).float().to(device))
+                        module2.bias_mask.copy_(torch.from_numpy(overlap_bias).float().to(device))
+
+
+                else:
+                    ticket1_weight = module1.weight.detach().cpu().numpy()
+                    ticket2_weight = module2.weight.detach().cpu().numpy()
+
+                    overlap_weight = only_matching_weights(ticket1_weight, ticket2_weight, name1)
+
+                    module1.weight.copy_(torch.from_numpy(overlap_weight).float().to(device))
+                    module2.weight.copy_(torch.from_numpy(overlap_weight).float().to(device))
+
+                    if bias:
+                        ticket1_bias = module1.bias.detach().cpu().numpy()
+                        ticket2_bias = module2.bias.detach().cpu().numpy()
+
+                        overlap_bias = only_matching_weights(ticket1_bias, ticket2_bias, name1)
+
+                        module1.bias.copy_(torch.from_numpy(overlap_bias).float().to(device))
+                        module2.bias.copy_(torch.from_numpy(overlap_bias).float().to(device)) 
+                
+    
+    return model1,model2
 
 def colt(model1,model2,bias=True):  
     
@@ -94,6 +141,21 @@ def colt(model1,model2,bias=True):
                 
     
     return model1,model2
+
+def colt2(models, partition):
+    model0 = models[0]
+    model1 = models[1]
+
+    for i in range(1,partition):
+        if i ==1:
+            models[0],models[1] = colt(model0, model1)
+        else:
+            _,models[i] = colt(models[i-1],models[i])
+
+    for i in range(partition-1):
+        models[i] = load_weights(models[i],models[-1])
+
+    return models
 
 # # Prune by Percentile module
 # def prune_by_percentile(model,mask,percent, **kwargs):

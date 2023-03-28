@@ -10,33 +10,17 @@ import random
 from torch.optim.lr_scheduler import _LRScheduler
 
 
-def get_split(dataset_name, batch_size, train, test, model_name, shuffle=False):
+def get_split(dataset_name, batch_size, train, test, model_name,partition, shuffle=False):
 
-    if model_name == 'A' or model_name == 'B':
-        if model_name == 'A':
-            start_class = 0
-            if dataset_name == "cifar10" or dataset_name == "fashionmnist":
-                end_class = 5
-            elif dataset_name == 'cifar100':
-                end_class = 50
-            elif dataset_name == 'imagenet':
-                end_class = 500
-            elif dataset_name == 'tinyimagenet':
-                end_class = 100
+    data_classes = {'cifar10':10,'cifar100':100,'tinyimagenet':200}
+    dclass = data_classes[dataset_name]
+    parts = int(dclass/partition)
+    
+    start_class = model_name*parts
+    end_class = start_class+parts
+    print(partition)
 
-        elif model_name == 'B':
-            if dataset_name == 'cifar10' or dataset_name == 'fashionmnist':
-                start_class = 5
-                end_class = 10
-            elif dataset_name == 'cifar100':
-                start_class = 50
-                end_class = 100
-            elif dataset_name == 'imagenet':
-                start_class = 500
-                end_class = 1000
-            elif dataset_name == 'tinyimagenet':
-                start_class = 100
-                end_class = 200
+    if partition!=0:
 
         targets_train = torch.tensor(train.targets)
         target_train_idx = ((targets_train >= start_class) & (targets_train < end_class))
@@ -48,9 +32,9 @@ def get_split(dataset_name, batch_size, train, test, model_name, shuffle=False):
         target_test_idx = torch.where(target_test_idx==1)[0]    
         target_test_subset = targets_test[target_test_idx]
 
-        if model_name == 'B':
-            target_train_subset = target_train_subset - start_class
-            target_test_subset = target_test_subset - start_class
+        
+        target_train_subset = target_train_subset - start_class
+        target_test_subset = target_test_subset - start_class
 
         print(f"Max train value is {torch.max(target_train_subset)}, Min train value is {torch.min(target_train_subset)}")
         print(f"Max test value is {torch.max(target_test_subset)}, Min test value is {torch.min(target_test_subset)}")
@@ -90,7 +74,7 @@ def get_split(dataset_name, batch_size, train, test, model_name, shuffle=False):
         test_loader = torch.utils.data.DataLoader(test_subset, batch_size = batch_size, shuffle=False, num_workers=0, drop_last=False, pin_memory=True) 
 
     
-    elif model_name == 'full':
+    else:
         
         targets_train = torch.tensor(train.targets)
         targets_test = torch.tensor(test.targets)
@@ -105,8 +89,8 @@ def get_split(dataset_name, batch_size, train, test, model_name, shuffle=False):
         train_loader = torch.utils.data.DataLoader(train, batch_size = batch_size, shuffle=shuffle, num_workers=0, drop_last=False, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(test, batch_size = batch_size, shuffle=False, num_workers=0, drop_last=False, pin_memory=True) 
     
-    train_image, train_label = iter(train_loader).next()
-    test_image, test_label = iter(test_loader).next()
+    train_image, train_label = iter(train_loader).__next__()
+    test_image, test_label = iter(test_loader).__next__()
 
     print(f"The train input data shape is: {train_image.shape}")
     print(f"The train label shape is: {train_label.shape}")

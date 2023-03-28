@@ -21,9 +21,12 @@ import random
 # Custom Libraries
 from utils import get_split, compare_models, checkdir
 from weights import weight_init, weight_rewinding
-from prune import colt, prune_rate_calculator, lth_local_unstructured_pruning, lth_global_unstructured_pruning
+from prune import colt, colt2,prune_rate_calculator, lth_local_unstructured_pruning, lth_global_unstructured_pruning
 from train import training
 from tinyimagenet import get_final_train_and_test_set
+
+import timeit
+
 
 
 # CUDA or CPU
@@ -146,14 +149,14 @@ def modelselect(args, output_class=None):
     
     if args.arch_type == "fc1":
         if output_class is None:
-            model = fc1.fc1().to(device)
+            model = fc1.fc1(num_classes=args.output_class).to(device)
         else:
             model = fc1.fc1(num_classes=output_class).to(device)
     elif args.arch_type == "lenet5":
         if output_class is None:
-            model = LeNet5.LeNet5().to(device)
+            model = LeNet5.LeNet5(num_classes=args.output_class).to(device)
         else:
-            model = LeNet5.LeNet5(num_classes=output_class).to(device)
+            model = LeNet5.LeNet5(num_classes=args.output_class).to(device)
     elif args.arch_type == "alexnet":
         if output_class is None:
             model = AlexNet.alexnet().to(device)
@@ -206,9 +209,23 @@ def main(args, ITE=1):
         print("\n\n ---- CUDA NOT AVAILABLE !!! ---- \n\n")
 
     traindataset, testdataset = dataset(args)
-
-    train_loaderA, test_loaderA = get_split(dataset_name =  args.dataset, batch_size=args.batch_size, train = traindataset, test = testdataset, model_name = 'A', shuffle=True)
-    train_loaderB, test_loaderB = get_split(dataset_name =  args.dataset, batch_size=args.batch_size, train = traindataset, test = testdataset, model_name = 'B', shuffle=True)
+    alltrain = []
+    alltest = []
+    all_loss = []
+    all_accuracy = []
+    all_comp = []
+    data_classes = {'cifar10':10,'cifar100':100,'tinyimagenet':200,'imagenet':1000}
+    dclass = data_classes[args.dataset]
+    args.output_class = int(dclass/args.partition)
+    
+    for i in range(args.partition):
+        all_comp.append(list())
+        all_accuracy.append(list())
+        all_loss.append(list())
+        train_loaderA, test_loaderA = get_split(dataset_name =  args.dataset, batch_size=args.batch_size, train = traindataset, test = testdataset, model_name = i,partition = args.partition, shuffle=True)
+        alltrain.append(train_loaderA)
+        alltest.append(test_loaderA)
+    #train_loaderB, test_loaderB = get_split(dataset_name =  args.dataset, batch_size=args.batch_size, train = traindataset, test = testdataset, model_name = 'B', shuffle=True)
     
     pt = args.prune_type
     strategy = args.prune_strategy
@@ -236,10 +253,11 @@ def main(args, ITE=1):
     compb = []
     bestacc2 = []
     
+    
     weight_dir = f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/initial_state_dict.pth"
     
     ## required for weight rewinding
-    model0 = modelselect(args) ## initialize a model with random weights
+    model0 = modelselect(args,output_class) ## initialize a model with random weights
     if os.path.exists(weight_dir):
         initial_state_dict = torch.load(weight_dir)
         model0.load_state_dict(initial_state_dict)
@@ -249,137 +267,124 @@ def main(args, ITE=1):
         checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/")
         torch.save(model0.state_dict(), weight_dir)      
                 
-
+    models = []
+    for i in range(args.partition):
+        models.append(modelselect(args,output_class))
     if not resume:             
-        model1 = modelselect(args)
-        model1.load_state_dict(initial_state_dict)
-        model1.to(device)
-
-        model2 = modelselect(args)
-        model2.load_state_dict(initial_state_dict)
-        model2.to(device)
-
-        compare_models(model1,model2)
+        #model1 = modelselect(args)
+        for i in range(args.partition):
+            models[i].load_state_dict(initial_state_dict)
+            models[i].to(device)
     
     else:
-        model1 = modelselect(args)
         
-        model2 = modelselect(args)
 
-        cp = torch.load(f"{os.getcwd()}/checkpoints/{args.arch_type}/{args.dataset}/{args.prune_type}/checkpoint_model_A_B.pth")
+        cp = torch.load(f"{os.getcwd()}/checkpoints/{args.arch_type}/{args.dataset}/{args.prune_type}/{str(args.partition)}/checkpoint_model_A_B.pth")
         
         pruning_round = cp['pruning_round']
         prune_rate = cp['prune_rate']
-        compa = cp['compa']
-        bestacc1 = cp['bestacc1']
-        compb = cp['compb']
-        bestacc2 = cp['bestacc2']
-        
+        for i in range(args.partition):
+            all_comp[i] = cp['comp'+str(i+1)]
+            all_accuracy[i] = cp['best_acc'+str(i+1)]
+
         if pruning_round==1:
-            model1.load_state_dict(cp['model_state_dict1'])
-            model2.load_state_dict(cp['model_state_dict2'])
-            model1.to(device)
-            model2.to(device)
-        else:                        
-            for module1 in model1.modules():
-                # if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d) or isinstance(module1, nn.BatchNorm2d):
-                if args.arch_type == "lenet5" or args.arch_type == "fc1":
-                    if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d): # for others
-                        prune.identity(module1, 'weight')
-                        if bias:
-                            prune.identity(module1, 'bias')
-                else:
-                    if isinstance(module1, nn.Conv2d):
-                        prune.identity(module1, 'weight')     
-                        
-            for module2 in model2.modules():
-                # if isinstance(module2, nn.Linear) or isinstance(module2, nn.Conv2d) or isinstance(module2, nn.BatchNorm2d):
-                if args.arch_type == "lenet5" or args.arch_type == "fc1":
-                    if isinstance(module2, nn.Linear) or isinstance(module2, nn.Conv2d): # for others
-                        prune.identity(module2, 'weight')
-                        if bias:
-                            prune.identity(module2, 'bias') 
-                else: 
-                    if isinstance(module2, nn.Conv2d): 
-                        prune.identity(module2, 'weight')     
+            for i in range(args.partition):
+                models[i].load_state_dict(cp['model_state_dict_'+str(i+1)])
+                models[i].to(device)
+        else:  
+            for i in range(args.partition):
+                for module1 in models[i].modules():
+                    # if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d) or isinstance(module1, nn.BatchNorm2d):
+                    if args.arch_type == "lenet5" or args.arch_type == "fc1":
+                        if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d): # for others
+                            prune.identity(module1, 'weight')
+                            if bias:
+                                prune.identity(module1, 'bias')
+                    else:
+                        if isinstance(module1, nn.Conv2d):
+                            prune.identity(module1, 'weight')                    
                                               
-            model1.load_state_dict(cp['model_state_dict1'])
-            model2.load_state_dict(cp['model_state_dict2'])
-            model1.to(device)
-            model2.to(device)
+                models[i].load_state_dict(cp['model_state_dict_'+str(i)])
             
-            for module1 in model1.modules():
-                # if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d) or isinstance(module1, nn.BatchNorm2d):
-                if args.arch_type == "lenet5" or args.arch_type == "fc1":
-                    if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d): 
-                        module1.weight = module1.weight_mask * module1.weight_orig
-                        if bias:
-                            module1.bias = module1.bias_mask * module1.bias_orig
-                else:
-                    if isinstance(module1, nn.Conv2d): 
-                        module1.weight = module1.weight_mask * module1.weight_orig    
+                models[i].to(device)
+            
+                for module1 in models[i].modules():
+                    # if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d) or isinstance(module1, nn.BatchNorm2d):
+                    if args.arch_type == "lenet5" or args.arch_type == "fc1":
+                        if isinstance(module1, nn.Linear) or isinstance(module1, nn.Conv2d): 
+                            module1.weight = module1.weight_mask * module1.weight_orig
+                            if bias:
+                                module1.bias = module1.bias_mask * module1.bias_orig
+                    else:
+                        if isinstance(module1, nn.Conv2d): 
+                            module1.weight = module1.weight_mask * module1.weight_orig    
                         
-            for module2 in model2.modules():
-                # if isinstance(module2, nn.Linear) or isinstance(module2, nn.Conv2d) or isinstance(module2, nn.BatchNorm2d):
-                if args.arch_type == "lenet5" or args.arch_type == "fc1":
-                    if isinstance(module2, nn.Linear) or isinstance(module2, nn.Conv2d): 
-                        module2.weight = module2.weight_mask * module2.weight_orig
-                        if bias:
-                            module2.bias = module2.bias_mask * module2.bias_orig  
-                else:
-                    if isinstance(module2, nn.Conv2d): 
-                        module2.weight = module2.weight_mask * module2.weight_orig
-                        
+    extime = []    
                         
     while (prune_rate < args.final_prune_rate):
                 
         print(f"\n--- Pruning Level [{ITE}: Pruning Round: {pruning_round}]")
-        
+        comp = []
+        acc = []
+        start = timeit.default_timer()
+
+
         if pruning_round == 0:
         
             if pt == 'colt':
-                prune_rate = prune_rate_calculator(model1, bias=bias)
+                prune_rate = prune_rate_calculator(models[0], bias=bias)
                 
                 checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}")
-                torch.save(model1.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/{prune_rate:.2f}_model_{pt}.pth")
+                torch.save(models[0].state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/{prune_rate:.2f}_model_{pt}.pth")
                                     
             elif pt == 'lth':           
-                prune_rate = prune_rate_calculator(model1, bias=bias)
+                prune_rate = prune_rate_calculator(models[0], bias=bias)
+                for i in range(args.partition):
                 
-                checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/A")
-                checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/B")
-                torch.save(model1.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/A/{prune_rate:.2f}_model_{pt}.pth")
-                torch.save(model2.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/B/{prune_rate:.2f}_model_{pt}.pth")  
+                    checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/{str(i+1)}")
+                
+                    torch.save(models[i].state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/{str(i+1)}/{prune_rate:.2f}_model_{pt}.pth")
+                #torch.save(model2.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/B/{prune_rate:.2f}_model_{pt}.pth")  
+
+            for i in range(args.partition):
+                models[i], all_loss1, all_accuracy1, accuracy1, comp1, best_accuracy1, best_val_loss1 = training(model=models[i], args = args, train_loader=alltrain[i], 
+                                                                                                    test_loader = alltest[i], model_type=i, bias=bias)
+                comp.append(comp1)
+                acc.append(best_accuracy1)
+                #all_loss.append(all_loss1)
+                #all_accuracy.append(all_accuracy1)
 
 
-            model1, all_loss1, all_accuracy1, accuracy1, comp1, best_accuracy1, best_val_loss1 = training(model=model1, args = args, train_loader=train_loaderA, 
-                                                                                                    test_loader = test_loaderA, model_type="A", bias=bias)
-            model2, all_loss2, all_accuracy2, accuracy2, comp2, best_accuracy2, best_val_loss2 = training(model=model2, args = args, train_loader=train_loaderB, 
-                                                                                                    test_loader = test_loaderB, model_type="B", bias=bias)          
+            #model2, all_loss2, all_accuracy2, accuracy2, comp2, best_accuracy2, best_val_loss2 = training(model=model2, args = args, train_loader=train_loaderB, 
+                                                                                                    #test_loader = test_loaderB, model_type="B", bias=bias)          
 
         if not pruning_round == 0:
             
             if strategy == 'local':
-                model1 = lth_local_unstructured_pruning(model1, output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
-                model2 = lth_local_unstructured_pruning(model2, output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
+                for i in range(args.partition):
+                    models[i] = lth_local_unstructured_pruning(models[i], output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
+                #model2 = lth_local_unstructured_pruning(model2, output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
                 
             elif strategy == 'global':
-                model1 = lth_global_unstructured_pruning(model1, output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
-                model2 = lth_global_unstructured_pruning(model2, output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
+                for i in range(args.partition):
+                    models[i] = lth_global_unstructured_pruning(models[i], output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
+                    
+                #model2 = lth_global_unstructured_pruning(model2, output_class, bias=bias, conv=conv_ratio, linear=linear_ratio, output=output_ratio, batchnorm=batchnorm_ratio)
+
                             
-            
-            model1 = weight_rewinding(model1, model0, bias=bias)
-            model2 = weight_rewinding(model2, model0, bias=bias)
+            for i in range(args.partition):
+                models[i] = weight_rewinding(models[i], model0, bias=bias)
+            #model1 = weight_rewinding(model1, model0, bias=bias)
+            #model2 = weight_rewinding(model2, model0, bias=bias)
 
             if pt == 'colt':
-                ## keep overlapping weights, make zero non-overlapping ones
-                model1,model2 = colt(model1=model1,model2=model2, bias=bias)
-                compare_models(model1, model2)
+                models = colt2(models,args.partition)
 
-                prune_rate = prune_rate_calculator(model1, bias=bias)
+
+                prune_rate = prune_rate_calculator(models[0], bias=bias)
                 
                 checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}")
-                torch.save(model1.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/{prune_rate:.2f}_model_{pt}.pth")
+                torch.save(models[0].state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/{prune_rate:.2f}_model_{pt}.pth")
                     
                 
             elif pt == 'lth':           
@@ -388,20 +393,36 @@ def main(args, ITE=1):
                 checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/A")
                 checkdir(f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/B")
                 torch.save(model1.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/A/{prune_rate:.2f}_model_{pt}.pth")
-                torch.save(model2.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/B/{prune_rate:.2f}_model_{pt}.pth")
+                #torch.save(model2.state_dict(),f"{os.getcwd()}/saves/{args.arch_type}/{args.dataset}/{pt}/B/{prune_rate:.2f}_model_{pt}.pth")
             
-            
-            model1, all_loss1, all_accuracy1, accuracy1, comp1, best_accuracy1, best_val_loss1 = training(model=model1, args = args, train_loader=train_loaderA, 
+            for i in range(args.partition):
+
+                model1, all_loss1, all_accuracy1, accuracy1, comp1, best_accuracy1, best_val_loss1 = training(model=model1, args = args, train_loader=train_loaderA, 
                                                                                                     test_loader = test_loaderA, model_type="A", bias=bias)
+                comp.append(comp1)
+                acc.append(best_accuracy1)
+    
+
             
-            model2, all_loss2, all_accuracy2, accuracy2, comp2, best_accuracy2, best_val_loss2 = training(model=model2, args = args, train_loader=train_loaderB, 
-                                                                                                    test_loader = test_loaderB, model_type="B", bias=bias)
+            #model2, all_loss2, all_accuracy2, accuracy2, comp2, best_accuracy2, best_val_loss2 = training(model=model2, args = args, train_loader=train_loaderB, 
+                                                                                                    #test_loader = test_loaderB, model_type="B", bias=bias)
+        #Your statements here
+
+        stop = timeit.default_timer()
+
+        print('Time: ', stop - start)
+        timeex = str(stop-start)  
+        extime.append(timeex)
+        for i in range(args.partition):
+            all_comp[i].append(comp[i])
+            all_accuracy[i].append(acc[i])
         
-        compa.append(comp1)
-        compb.append(comp2)
+
+        #compa.append(comp1)
+        #compb.append(comp2)
         
-        bestacc1.append(best_accuracy1)
-        bestacc2.append(best_accuracy2)
+        #bestacc1.append(best_accuracy1)
+        #bestacc2.append(best_accuracy2)
         
                 
         pruning_round += 1
@@ -410,46 +431,51 @@ def main(args, ITE=1):
         checkpoint = {
             'pruning_round' : pruning_round,
             'prune_rate' : prune_rate,
-            'compa' : compa,
-            'compb' : compb,
-            'bestacc1' : bestacc1,
-            'bestacc2' : bestacc2,
-            'model_state_dict1' : model1.state_dict(),
-            'model_state_dict2' : model2.state_dict(),
+            #'compa' : compa,
+            #'compb' : compb,
+            #'bestacc1' : bestacc1,
+            #'bestacc2' : bestacc2,
+            #'model_state_dict1' : model1.state_dict(),
+            #'model_state_dict2' : model2.state_dict(),
 
-        }        
-        checkdir(f"{os.getcwd()}/checkpoints/{args.arch_type}/{args.dataset}/{args.prune_type}")
-        torch.save(checkpoint, f"{os.getcwd()}/checkpoints/{args.arch_type}/{args.dataset}/{args.prune_type}/checkpoint_model_A_B.pth")  
+        }    
+        for i in range(args.partition):
+            checkpoint['comp'+str(i+1)] = all_comp[i]
+            checkpoint['best_acc'+str(i+1)] = all_accuracy[i]
+            checkpoint['model_state_dict_'+str(i+1)] = models[i].state_dict()    
+        
+        checkdir(f"{os.getcwd()}/checkpoints/{args.arch_type}/{args.dataset}/{args.prune_type}/{str(args.partition)}")
+        torch.save(checkpoint, f"{os.getcwd()}/checkpoints/{args.arch_type}/{args.dataset}/{args.prune_type}/{str(args.partition)}/checkpoint_model_A_B.pth")  
         
         # Dump Plot values
-        checkdir(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/A")
-        checkdir(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/B")
-        all_loss1.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/A/{pt}_all_loss_{comp1}.dat")
-        all_accuracy1.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/A/{pt}_all_accuracy_{comp1}.dat")
-        all_loss2.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/B/{pt}_all_loss_{comp2}.dat")
-        all_accuracy2.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/B/{pt}_all_accuracy_{comp2}.dat")
+        for i in range(args.partition):
 
-        '''
-        # Dumping mask
-        checkdir(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/")
-        with open(f"{os.getcwd()}/dumps/lt/{args.arch_type}/{args.dataset}/{args.prune_type}_mask_{comp1}.pkl", 'wb') as fp:
-            pickle.dump(mask, fp)'''
-              
+            checkdir(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/{str(args.partition)}")
+            np_compa = np.array(all_comp[i])
+            np_bestacc1 = np.array([x.cpu() for x in all_accuracy[i]])
+            #np_compb = np.array(compb)
+            #np_bestacc2 = np.array([x.cpu() for x in bestacc2])
+
+            # Dumping Values for Plot
+            np_compa.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/{str(args.partition)}/{pt}_compression.dat")
+            np_bestacc1.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/{str(args.partition)}/{pt}_bestaccuracy.dat")
+
+    
 
 
-        np_compa = np.array(compa)
-        np_bestacc1 = np.array([x.cpu() for x in bestacc1])
-        np_compb = np.array(compb)
-        np_bestacc2 = np.array([x.cpu() for x in bestacc2])
+        
 
-        # Dumping Values for Plot
-        np_compa.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/A/{pt}_compression.dat")
-        np_bestacc1.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/A/{pt}_bestaccuracy.dat")
-
-        np_compb.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/B/{pt}_compression.dat")
-        np_bestacc2.dump(f"{os.getcwd()}/dumps/{pt}/{args.arch_type}/{args.dataset}/B/{pt}_bestaccuracy.dat")
+        comp = []
+        acc = []
+    import pandas as pd
+    df = pd.DataFrame()
+    df['time'] = timeex
+    
+    checkdir(f"{os.getcwd()}/time/{pt}/{args.arch_type}/{args.dataset}/")
+    df.to_csv()
 
     # Plotting
+    '''
     a = np.arange(pruning_round)
     plt.plot(a, np_bestacc1, c="blue", label="Winning Tickets") 
     plt.title(f"Test Accuracy VS Unpruned Weights Percentage ({args.dataset},{args.arch_type})") 
@@ -477,7 +503,7 @@ def main(args, ITE=1):
     
     checkdir(f"{os.getcwd()}/plots/{pt}/{args.arch_type}/{args.dataset}/B")
     plt.savefig(f"{os.getcwd()}/plots/{pt}/{args.arch_type}/{args.dataset}/B/{args.prune_type}_AccuracyVsWeights.png", dpi=1200, bbox_inches='tight') 
-    plt.close()      
+    plt.close() '''     
            
     
     
@@ -490,6 +516,7 @@ if __name__=="__main__":
     parser.add_argument("--warmup", default=1, type=int, help="1 means to apply warmup to first epoch, 0 means no wamrup for first epoch") #1
     parser.add_argument("--batch_size", default=256, type=int) #256 
     parser.add_argument("--start_iter", default=0, type=int, help="start epoch") #0
+    parser.add_argument("--partition", default=2, type=int, help="number of partition") #0
     parser.add_argument("--end_iter", default=50, type=int, help="end epoch") #50
     parser.add_argument("--prune_type", default="colt", type=str, help="lth | colt")
     parser.add_argument("--augmentations", default="yes", type=str, help="yes | no") #yes

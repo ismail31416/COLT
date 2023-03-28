@@ -11,6 +11,7 @@ import random
 import os
 
 
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 # device = torch.device("cpu")
 
@@ -18,7 +19,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def training(model, args, train_loader, test_loader, model_type, bias):
     
     print('----------------------')
-    print('model '+model_type)
+    print('model '+str(model_type))
     
     print('----------------------')
     
