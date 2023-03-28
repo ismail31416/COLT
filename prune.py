@@ -41,7 +41,7 @@ def check_pruned(module, bias=True):
         return params == expected_params1 or params == expected_params2
 
 
-def load_weights(model1,model2, bias = True):
+def load_weights(model1,model2, bias = False):
 
 
     with torch.no_grad():
@@ -89,7 +89,7 @@ def load_weights(model1,model2, bias = True):
     
     return model1,model2
 
-def colt(model1,model2,bias=True):  
+def colt(model1,model2,bias=False):  
     
     """
     Pruned overlapping weights between two models
@@ -143,14 +143,11 @@ def colt(model1,model2,bias=True):
     return model1,model2
 
 def colt2(models, partition):
-    model0 = models[0]
-    model1 = models[1]
+    
 
     for i in range(1,partition):
-        if i ==1:
-            models[0],models[1] = colt(model0, model1)
-        else:
-            _,models[i] = colt(models[i-1],models[i])
+       
+        _,models[i] = colt(models[i-1],models[i],bias = False)
 
     for i in range(partition-1):
         models[i] = load_weights(models[i],models[-1])
