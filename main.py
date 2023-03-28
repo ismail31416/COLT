@@ -397,8 +397,8 @@ def main(args, ITE=1):
             
             for i in range(args.partition):
 
-                model1, all_loss1, all_accuracy1, accuracy1, comp1, best_accuracy1, best_val_loss1 = training(model=model1, args = args, train_loader=train_loaderA, 
-                                                                                                    test_loader = test_loaderA, model_type="A", bias=bias)
+                model1, all_loss1, all_accuracy1, accuracy1, comp1, best_accuracy1, best_val_loss1 = training(model=models[i], args = args, train_loader=alltrain[i], 
+                                                                                                    test_loader = alltest[i], model_type=i, bias=bias)
                 comp.append(comp1)
                 acc.append(best_accuracy1)
     
